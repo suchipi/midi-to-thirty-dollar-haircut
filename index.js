@@ -9,20 +9,19 @@ function main(options) {
     NOTE_ON: 0x9,
   };
 
-  let out = [`!speed@${options.bpm}`];
+  const out = [`!speed@${options.bpm}`];
 
   const timeNotesMap = {};
-  function addToTimeNotesMap(time, pitch, trackNr) {
-    // save trackNr (hey we should be using typescript) to map to instument later
+  function addToTimeNotesMap(time, pitch, trackNumber) {
     if (timeNotesMap[time] == null) {
-      timeNotesMap[time] = [[pitch, trackNr]];
+      timeNotesMap[time] = [[pitch, trackNumber]];
     } else {
-      timeNotesMap[time].push([pitch, trackNr]);
+      timeNotesMap[time].push([pitch, trackNumber]);
     }
   }
 
-  function parseTrack(trackNr) {
-    const events = midi.track[trackNr].event;
+  function parseTrack(trackNumber) {
+    const events = midi.track[trackNumber].event;
 
     let currentTime = 0;
     let timeSinceLastNoteOn = 0;
@@ -46,12 +45,12 @@ function main(options) {
 
       timeSinceLastNoteOn = 0;
 
-      addToTimeNotesMap(currentTime, pitch, trackNr);
+      addToTimeNotesMap(currentTime, pitch, trackNumber);
     }
   }
 
-  for (const trackNr of Object.keys(options.trackInstrumentMap)) {
-    parseTrack(trackNr);
+  for (const trackNumber of Object.keys(options.trackInstrumentMap)) {
+    parseTrack(trackNumber);
   }
 
   const sortedTimeNotesMapEntries = Object.entries(timeNotesMap).sort(
@@ -60,27 +59,30 @@ function main(options) {
 
   let currentTime = 0;
   for (const [noteTime, notes] of sortedTimeNotesMapEntries) {
-    out.push(
-      `!stop@${noteTime - currentTime}`,
-      notes
-        .map(
-          ([pitch, track]) =>
-            `${options.trackInstrumentMap[track]}@${
-              pitch - 65 + options.pitchShift
-            }`
-        )
-        .join("|!combine|")
-    );
+    out.push(`!stop@${noteTime - currentTime}`);
+
+    for (let i = 0; i < notes.length; i++) {
+      const [pitch, track] = notes[i];
+
+      out.push(
+        `${options.trackInstrumentMap[track]}@${
+          pitch - 65 + options.pitchShift
+        }`
+      );
+
+      if (i !== notes.length - 1) {
+        out.push("!combine");
+      }
+    }
+
     currentTime = noteTime;
   }
 
-  // not efficient but its ok
-  let outStr = out.join("|");
-  out = outStr.split("|").slice(0, options.maxParts);
-  outStr = out.join("|");
+  const clampedOut = out.slice(0, options.maxParts);
+  const outStr = clampedOut.slice(0, options.maxParts).join("|");
 
   console.log(outStr);
-  console.log({ parts: out.length });
+  console.log({ parts: clampedOut.length });
   fs.writeFileSync("./out.🗿", outStr);
 }
 
