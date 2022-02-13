@@ -1,7 +1,18 @@
-const fs = require("fs");
-const midiParser = require("midi-parser-js");
+import fs from "fs";
+import midiParser from "midi-parser-js";
 
-function main(options) {
+type AppOptions = {
+  midiFile: string;
+  trackInstrumentMap: { [key: number]: string };
+  maxParts: number;
+  bpm: number; // max 10000
+  ignoredDeltaCutoff: number;
+  pitchShift: number;
+  waitCompensation: number;
+  waitMultiplier: number;
+};
+
+function main(options: AppOptions) {
   const song = fs.readFileSync(options.midiFile);
   const midi = midiParser.parse(song);
 
@@ -11,16 +22,25 @@ function main(options) {
 
   const out = [`!speed@${options.bpm}`];
 
-  const timeNotesMap = {};
-  function addToTimeNotesMap(time, pitch, trackNumber) {
-    if (timeNotesMap[time] == null) {
-      timeNotesMap[time] = [[pitch, trackNumber]];
-    } else {
-      timeNotesMap[time].push([pitch, trackNumber]);
+  const timeNotesMap = new Map<
+    number,
+    Array<{ pitch: number; trackNumber: number }>
+  >();
+  function addToTimeNotesMap(time: number, pitch: number, trackNumber: number) {
+    let notes = timeNotesMap.get(time);
+    if (!notes) {
+      notes = [];
     }
+
+    notes.push({
+      pitch,
+      trackNumber,
+    });
+
+    timeNotesMap.set(time, notes);
   }
 
-  function parseTrack(trackNumber) {
+  function parseTrack(trackNumber: number) {
     const events = midi.track[trackNumber].event;
 
     let currentTime = 0;
@@ -50,10 +70,10 @@ function main(options) {
   }
 
   for (const trackNumber of Object.keys(options.trackInstrumentMap)) {
-    parseTrack(trackNumber);
+    parseTrack(trackNumber as any as number);
   }
 
-  const sortedTimeNotesMapEntries = Object.entries(timeNotesMap).sort(
+  const sortedTimeNotesMapEntries = Array.from(timeNotesMap).sort(
     ([noteTimeA], [noteTimeB]) => noteTimeA - noteTimeB
   );
 
@@ -62,10 +82,10 @@ function main(options) {
     out.push(`!stop@${noteTime - currentTime}`);
 
     for (let i = 0; i < notes.length; i++) {
-      const [pitch, track] = notes[i];
+      const { pitch, trackNumber } = notes[i];
 
       out.push(
-        `${options.trackInstrumentMap[track]}@${
+        `${options.trackInstrumentMap[trackNumber]}@${
           pitch - 65 + options.pitchShift
         }`
       );
@@ -87,17 +107,35 @@ function main(options) {
 }
 
 main({
-  midiFile: "Chewie_Ninya_Portal_-_Still_Alive_Septet.mid",
+  midiFile: "Ugh.mid",
   trackInstrumentMap: {
-    // 0: "noteblock_harp",
-    1: "noteblock_bass",
+    0: "noteblock_harp",
+    1: "noteblock_harp",
+    2: "noteblock_harp",
+    3: "noteblock_harp",
+    4: "noteblock_harp",
+    5: "noteblock_harp",
+    6: "noteblock_harp",
+    7: "noteblock_harp",
+    8: "noteblock_harp",
+    9: "noteblock_harp",
+    10: "noteblock_harp",
+    11: "noteblock_harp",
+    12: "noteblock_harp",
+    13: "noteblock_harp",
+    14: "noteblock_harp",
+    15: "noteblock_harp",
+    16: "noteblock_harp",
+    17: "noteblock_harp",
+    18: "noteblock_harp",
+    19: "noteblock_harp",
+    20: "noteblock_harp",
+    21: "noteblock_harp",
   },
-  maxParts: Infinity,
   maxParts: 500,
   bpm: 10000,
   ignoredDeltaCutoff: 0,
   pitchShift: 5,
   waitCompensation: 0,
-  // waitMultiplier: 1,
-  waitMultiplier: 1 / 10,
+  waitMultiplier: 1 / 3,
 });

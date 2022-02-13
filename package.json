@@ -3,10 +3,15 @@
   "version": "0.0.0",
   "private": true,
   "license": "MIT",
+  "scripts": {
+    "start": "kame run index.ts"
+  },
   "dependencies": {
+    "kame": "^0.6.7",
     "midi-parser-js": "^4.0.4"
   },
   "devDependencies": {
+    "@types/node": "^17.0.17",
     "prettier": "^2.5.1"
   }
 }
