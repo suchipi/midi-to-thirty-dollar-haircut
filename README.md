@@ -1,6 +1,6 @@
 # midi to thirty dollar haircut converter
 
-only supports one track at a time, and you'll need to tweak the numbers to get it working, but
+supports multiple tracks, just map each one to an instrument in the script. you might need to tweak some numbers too
 
 - `npm install`
 - get a single-track MIDI (some good ones here: <https://bmp.trotlinebeercan.com/>)

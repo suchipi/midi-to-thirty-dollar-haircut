@@ -9,56 +9,87 @@ function main(options) {
     NOTE_ON: 0x9,
   };
 
-  let out = [];
+  let out = [`!speed@${options.bpm}`];
 
-  function write(label, at = null) {
-    out.push({ label, at });
-  }
-
-  write("!speed", options.bpm);
-
-  const events = midi.track[options.track].event;
-
-  let timeSinceLastNoteOn = 0;
-  for (const event of events) {
-    if (out.length >= options.maxParts) break;
-
-    timeSinceLastNoteOn += event.deltaTime;
-
-    if (event.type !== TYPES.NOTE_ON) continue;
-
-    const pitch = event?.data?.[0];
-    if (!pitch) continue;
-
-    if (
-      timeSinceLastNoteOn >= options.ignoredDeltaCutoff &&
-      timeSinceLastNoteOn > 0
-    ) {
-      write(
-        "!stop",
-        Math.max(0, timeSinceLastNoteOn - options.waitCompensation) *
-          options.waitMultiplier
-      );
-    } else if (out.length > 1) {
-      write("!combine");
+  const timeNotesMap = {};
+  function addToTimeNotesMap(time, pitch, trackNr) {
+    // save trackNr (hey we should be using typescript) to map to instument later
+    if (timeNotesMap[time] == null) {
+      timeNotesMap[time] = [[pitch, trackNr]];
+    } else {
+      timeNotesMap[time].push([pitch, trackNr]);
     }
-    timeSinceLastNoteOn = 0;
-
-    write(options.instrument, pitch - 65 + options.pitchShift);
   }
 
-  const outStr = out
-    .map((part) => (part.at ? `${part.label}@${part.at}` : part.label))
-    .join("|");
+  function parseTrack(trackNr) {
+    const events = midi.track[trackNr].event;
+
+    let currentTime = 0;
+    let timeSinceLastNoteOn = 0;
+
+    for (const event of events) {
+      timeSinceLastNoteOn += event.deltaTime;
+
+      if (event.type !== TYPES.NOTE_ON) continue;
+
+      const pitch = event?.data?.[0];
+      if (!pitch) continue;
+
+      if (
+        timeSinceLastNoteOn >= options.ignoredDeltaCutoff &&
+        timeSinceLastNoteOn > 0
+      ) {
+        currentTime +=
+          Math.max(0, timeSinceLastNoteOn - options.waitCompensation) *
+          options.waitMultiplier;
+      }
+
+      timeSinceLastNoteOn = 0;
+
+      addToTimeNotesMap(currentTime, pitch, trackNr);
+    }
+  }
+
+  for (const trackNr of Object.keys(options.trackInstrumentMap)) {
+    parseTrack(trackNr);
+  }
+
+  const sortedTimeNotesMapEntries = Object.entries(timeNotesMap).sort(
+    ([noteTimeA], [noteTimeB]) => noteTimeA - noteTimeB
+  );
+
+  let currentTime = 0;
+  for (const [noteTime, notes] of sortedTimeNotesMapEntries) {
+    out.push(
+      `!stop@${noteTime - currentTime}`,
+      notes
+        .map(
+          ([pitch, track]) =>
+            `${options.trackInstrumentMap[track]}@${
+              pitch - 65 + options.pitchShift
+            }`
+        )
+        .join("|!combine|")
+    );
+    currentTime = noteTime;
+  }
+
+  // not efficient but its ok
+  let outStr = out.join("|");
+  out = outStr.split("|").slice(0, options.maxParts);
+  outStr = out.join("|");
+
   console.log(outStr);
   console.log({ parts: out.length });
   fs.writeFileSync("./out.🗿", outStr);
 }
 
 main({
-  midiFile: "./Nozomi_Tenma_M.I.L.F_-_Friday_Night_Funkin.mid",
-  instrument: "🚫",
-  track: 1,
+  midiFile: "Chewie_Ninya_Portal_-_Still_Alive_Septet.mid",
+  trackInstrumentMap: {
+    // 0: "noteblock_harp",
+    1: "noteblock_bass",
+  },
   maxParts: Infinity,
   maxParts: 500,
   bpm: 10000,
